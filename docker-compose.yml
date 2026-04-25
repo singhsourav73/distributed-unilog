@@ -1,0 +1,131 @@
+services:
+  # --------------------------------------------------------
+  # API Gateway
+  # Entry point handling external traffic on port 8000
+  # --------------------------------------------------------
+  gateway:
+    build:
+      context: .
+      dockerfile: gateway/Dockerfile
+    ports:
+      - "8000:8000"
+    environment:
+      # Injects the internal Docker DNS name for the producer
+      - PRODUCER_URL=http://producer:8080
+      - REDIS_ADDR=redis:6379
+    depends_on:
+      - producer
+
+  # --------------------------------------------------------
+  # Log Producer
+  # Ingests HTTP logs and pushes them to Kafka
+  # --------------------------------------------------------
+  producer:
+    build:
+      context: .
+      dockerfile: producer/Dockerfile
+    expose:
+      - "8080" # Exposed internally to the Docker network only
+    environment:
+      # Connects to Kafka using the internal Docker network listener
+      - KAFKA_BROKERS=kafka:29092
+    depends_on:
+      - kafka
+
+  # --------------------------------------------------------
+  # Log Consumer
+  # Pulls events from Kafka and writes them to PostgreSQL
+  # --------------------------------------------------------
+  consumer:
+    build:
+      context: .
+      dockerfile: consumer/Dockerfile
+    expose:
+      - "8082" # Exposed internally for health checks/metrics
+    environment:
+      - KAFKA_BROKERS=kafka:29092
+      # Database connection parameters
+      - DB_HOST=postgres
+      - DB_PORT=5432
+      - DB_USER=loguser
+      - DB_PASSWORD=logpassword
+      - DB_NAME=logprocessor
+      - REDIS_ADDR=redis:6379
+    depends_on:
+      - kafka
+      - postgres
+
+  # --------------------------------------------------------
+  # Apache Kafka & Zookeeper (Event Streaming)
+  # --------------------------------------------------------
+  zookeeper:
+    image: confluentinc/cp-zookeeper:7.4.0
+    environment:
+      ZOOKEEPER_CLIENT_PORT: 2181
+      ZOOKEEPER_TICK_TIME: 2000
+
+  kafka:
+    image: confluentinc/cp-kafka:7.4.0
+    ports:
+      - "9092:9092"
+    depends_on:
+      - zookeeper
+    environment:
+      KAFKA_BROKER_ID: 1
+      KAFKA_ZOOKEEPER_CONNECT: zookeeper:2181
+      # 29092 is for internal container traffic, 9092 is for your local Mac terminal
+      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://kafka:29092,PLAINTEXT_HOST://localhost:9092
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: PLAINTEXT:PLAINTEXT,PLAINTEXT_HOST:PLAINTEXT
+      KAFKA_INTER_BROKER_LISTENER_NAME: PLAINTEXT
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+
+  # --------------------------------------------------------
+  # PostgreSQL Database (Persistence Layer)
+  # --------------------------------------------------------
+  postgres:
+    image: postgres:15-alpine
+    environment:
+      POSTGRES_DB: logprocessor
+      POSTGRES_USER: loguser
+      POSTGRES_PASSWORD: logpassword
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+
+  # --------------------------------------------------------
+  # Redis (cache layer)
+  # --------------------------------------------------------
+  redis:
+    image: redis:7-alpine
+    ports:
+      - "6379:6379"
+
+  # --------------------------------------------------------
+  # Monitoring & Observability
+  # --------------------------------------------------------
+  prometheus:
+    image: prom/prometheus:v2.45.0
+    ports:
+      - "9090:9090"
+    volumes:
+      # Mount your local prometheus.yml into the container
+      - ./prometheus.yml:/etc/prometheus/prometheus.yml
+    depends_on:
+      - gateway
+      - producer
+      - consumer
+
+  grafana:
+    image: grafana/grafana:10.0.3
+    ports:
+      - "3000:3000"
+    environment:
+      - GF_SECURITY_ADMIN_USER=admin
+      - GF_SECURITY_ADMIN_PASSWORD=admin
+    depends_on:
+      - prometheus
+
+# Persist database data even if the containers are torn down
+volumes:
+  postgres_data:

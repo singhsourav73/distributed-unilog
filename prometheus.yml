@@ -1,0 +1,24 @@
+global:
+  scrape_interval: 5s
+  evaluation_interval: 5s
+
+scrape_configs:
+  # Scrape Prometheus itself
+  - job_name: "prometheus"
+    static_configs:
+      - targets: ["localhost:9090"]
+
+  # Scrape the API Gateway
+  - job_name: "gateway"
+    static_configs:
+      - targets: ["gateway:8000"]
+
+  # Scrape the Log Producer
+  - job_name: "producer"
+    static_configs:
+      - targets: ["producer:8080"]
+
+  # Scrape the Log Consumer
+  - job_name: "consumer"
+    static_configs:
+      - targets: ["consumer:8082"]
