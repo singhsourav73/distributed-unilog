@@ -58,18 +58,18 @@ func initInfraStructure() {
 	}
 	log.Println("Successfully connected to PostgreSQL!")
 
-	createTableQuery := `
-	CREATE TABLE IF NOT EXISTS processed_logs (
-		id UUID PRIMARY KEY,
-		organization_id VARCHAR(255),
-		level VARCHAR(50),
-		message TEXT,
-		source VARCHAR(255),
-		timestamp TIMESTAMP
-	);`
-	if _, err = db.Exec(createTableQuery); err != nil {
-		log.Fatalf("Failed to create table: %v", err)
-	}
+	// createTableQuery := `
+	// CREATE TABLE IF NOT EXISTS processed_logs (
+	// 	id UUID PRIMARY KEY,
+	// 	organization_id VARCHAR(255),
+	// 	level VARCHAR(50),
+	// 	message TEXT,
+	// 	source VARCHAR(255),
+	// 	timestamp TIMESTAMP
+	// );`
+	// if _, err = db.Exec(createTableQuery); err != nil {
+	// 	log.Fatalf("Failed to create table: %v", err)
+	// }
 
 	// Initialize the RedisBloom filter structure if it doesn't exist
 	// ERROR: 0.01 is the error rate, 1000000 is the initial capacity
